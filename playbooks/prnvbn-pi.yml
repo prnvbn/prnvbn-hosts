@@ -1,0 +1,17 @@
+---
+- name: Configure prnvbn-pi
+  hosts: prnvbn-pi
+  become: true
+
+  tasks:
+    - name: Update the apt package cache
+      ansible.builtin.apt:
+        update_cache: true
+        cache_valid_time: 3600
+
+    - name: Install Git and HTTPS certificates
+      ansible.builtin.apt:
+        name:
+          - git
+          - ca-certificates
+        state: present
