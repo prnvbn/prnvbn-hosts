@@ -40,6 +40,7 @@
         state: present
         update_cache: "{{ tailscale_signing_key.changed or tailscale_repository.changed }}"
 
+    # "sudo tailscale up" has to be run manually on the host
     - name: Enable and start Tailscale
       ansible.builtin.systemd_service:
         name: tailscaled

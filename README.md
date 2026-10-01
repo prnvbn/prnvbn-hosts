@@ -8,7 +8,7 @@ Install Ansible:
 brew install ansible
 ```
 
-run the following to push changes to the pi
+Run setup:
 
 ```bash
 ansible-playbook playbooks/prnvbn-pi.yml --ask-become-pass
