@@ -15,3 +15,33 @@
           - git
           - ca-certificates
         state: present
+
+    - name: Install the Tailscale package signing key
+      ansible.builtin.get_url:
+        url: "https://pkgs.tailscale.com/stable/debian/{{ ansible_facts['distribution_release'] }}.noarmor.gpg"
+        dest: /usr/share/keyrings/tailscale-archive-keyring.gpg
+        owner: root
+        group: root
+        mode: "0644"
+      register: tailscale_signing_key
+
+    - name: Add the Tailscale apt repository
+      ansible.builtin.get_url:
+        url: "https://pkgs.tailscale.com/stable/debian/{{ ansible_facts['distribution_release'] }}.tailscale-keyring.list"
+        dest: /etc/apt/sources.list.d/tailscale.list
+        owner: root
+        group: root
+        mode: "0644"
+      register: tailscale_repository
+
+    - name: Install Tailscale
+      ansible.builtin.apt:
+        name: tailscale
+        state: present
+        update_cache: "{{ tailscale_signing_key.changed or tailscale_repository.changed }}"
+
+    - name: Enable and start Tailscale
+      ansible.builtin.systemd_service:
+        name: tailscaled
+        enabled: true
+        state: started
