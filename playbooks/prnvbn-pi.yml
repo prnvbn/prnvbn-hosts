@@ -23,3 +23,7 @@
     - name: Install CoreDNS
       ansible.builtin.import_role:
         name: coredns
+
+    - name: Install K3s
+      ansible.builtin.import_role:
+        name: k3s

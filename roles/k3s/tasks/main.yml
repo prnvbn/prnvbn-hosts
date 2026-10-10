@@ -1,0 +1,101 @@
+---
+- name: Check K3s platform support
+  ansible.builtin.assert:
+    that:
+      - ansible_facts['system'] == 'Linux'
+      - ansible_facts['service_mgr'] == 'systemd'
+      - ansible_facts['architecture'] in ['aarch64', 'armv7l', 'x86_64']
+    fail_msg: K3s installation requires Linux with systemd on ARM64, ARMv7, or AMD64.
+
+- name: Read cgroup v1 controllers
+  ansible.builtin.slurp:
+    src: /proc/cgroups
+  register: k3s_cgroups
+
+- name: Check for cgroup v2 controllers
+  ansible.builtin.stat:
+    path: /sys/fs/cgroup/cgroup.controllers
+  register: k3s_cgroup_v2
+
+- name: Read cgroup v2 controllers
+  ansible.builtin.slurp:
+    src: /sys/fs/cgroup/cgroup.controllers
+  register: k3s_cgroup_v2_controllers
+  when: k3s_cgroup_v2.stat.exists
+
+- name: Enable memory cgroups on the Pi
+  ansible.builtin.include_tasks: memory-cgroup.yml
+  when:
+    - (k3s_cgroups.content | b64decode | regex_search('(?m)^memory\s+\d+\s+\d+\s+1\s*$')) is none
+    - "'memory' not in (k3s_cgroup_v2_controllers.content | default('') | b64decode).split()"
+
+- name: Create the K3s download directory
+  ansible.builtin.file:
+    path: /var/cache/k3s
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Download the versioned K3s installer
+  ansible.builtin.get_url:
+    url: "https://raw.githubusercontent.com/k3s-io/k3s/{{ k3s_version }}/install.sh"
+    dest: "/var/cache/k3s/install-{{ k3s_version }}.sh"
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Check the installed K3s version
+  ansible.builtin.command:
+    argv:
+      - /usr/local/bin/k3s
+      - --version
+  register: k3s_installed_version
+  changed_when: false
+  failed_when: false
+  check_mode: false
+
+- name: Check for the K3s server service
+  ansible.builtin.stat:
+    path: /etc/systemd/system/k3s.service
+  register: k3s_service
+
+- name: Install the K3s server
+  ansible.builtin.command:
+    argv:
+      - /bin/sh
+      - "/var/cache/k3s/install-{{ k3s_version }}.sh"
+  environment:
+    INSTALL_K3S_VERSION: "{{ k3s_version }}"
+    INSTALL_K3S_EXEC: server
+    INSTALL_K3S_SKIP_START: "true"
+  when: >-
+    k3s_installed_version.rc != 0 or
+    ('k3s version ' ~ k3s_version ~ ' ') not in k3s_installed_version.stdout or
+    not k3s_service.stat.exists
+  changed_when: true
+  notify: Restart K3s
+
+- name: Apply K3s service changes
+  ansible.builtin.meta: flush_handlers
+
+- name: Enable and start K3s
+  ansible.builtin.systemd_service:
+    name: k3s
+    daemon_reload: true
+    enabled: true
+    state: started
+
+- name: Wait for the K3s API to become ready
+  ansible.builtin.command:
+    argv:
+      - /usr/local/bin/k3s
+      - kubectl
+      - get
+      - --raw=/readyz
+  register: k3s_api_ready
+  changed_when: false
+  until: k3s_api_ready.rc == 0
+  retries: 30
+  delay: 5
+  when: not ansible_check_mode

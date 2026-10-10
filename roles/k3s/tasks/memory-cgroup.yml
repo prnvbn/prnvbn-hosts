@@ -1,0 +1,52 @@
+---
+- name: Find the Pi kernel command line
+  ansible.builtin.stat:
+    path: "{{ item }}"
+  loop:
+    - /boot/firmware/cmdline.txt
+    - /boot/cmdline.txt
+  register: k3s_boot_cmdline_files
+
+- name: Check that the Pi kernel command line exists
+  ansible.builtin.assert:
+    that:
+      - k3s_boot_cmdline_files.results | selectattr('stat.exists') | list | length > 0
+    fail_msg: Memory cgroups are disabled. Enable them in the host's boot configuration and reboot before installing K3s.
+
+- name: Select the Pi kernel command line
+  ansible.builtin.set_fact:
+    k3s_boot_cmdline_path: "{{ (k3s_boot_cmdline_files.results | selectattr('stat.exists') | first).item }}"
+
+- name: Create the boot configuration backup directory
+  ansible.builtin.file:
+    path: /var/backups
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Back up the original Pi kernel command line
+  ansible.builtin.copy:
+    src: "{{ k3s_boot_cmdline_path }}"
+    dest: /var/backups/k3s-cmdline.txt
+    remote_src: true
+    force: false
+    owner: root
+    group: root
+    mode: "0600"
+
+- name: Enable memory cgroups in the Pi kernel command line
+  ansible.builtin.replace:
+    path: "{{ k3s_boot_cmdline_path }}"
+    regexp: "^(?!.*\\b{{ item }}\\b)(.+)$"
+    replace: "\\1 {{ item }}"
+    # Ansible's timestamped backup names contain colons, invalid on the FAT boot partition.
+    backup: false
+  loop:
+    - cgroup_memory=1
+    - cgroup_enable=memory
+
+- name: Reboot the Pi to enable memory cgroups
+  ansible.builtin.reboot:
+    msg: Rebooting to enable memory cgroups for K3s
+    reboot_timeout: 600
