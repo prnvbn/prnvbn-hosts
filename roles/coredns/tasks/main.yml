@@ -1,0 +1,50 @@
+---
+- name: Check CoreDNS platform support
+  ansible.builtin.assert:
+    that:
+      - ansible_facts['system'] == 'Linux'
+      - coredns_architecture in ['arm64', 'arm', 'amd64']
+    fail_msg: "CoreDNS installation requires Linux on ARM or AMD64; detected {{ ansible_facts['system'] }} {{ ansible_facts['architecture'] }}."
+
+- name: Create the CoreDNS download directory
+  ansible.builtin.file:
+    path: "{{ coredns_download_directory }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Download the CoreDNS release
+  ansible.builtin.get_url:
+    url: "{{ coredns_release_url }}/{{ coredns_archive_name }}"
+    checksum: "sha256:{{ coredns_release_url }}/{{ coredns_archive_name }}.sha256"
+    dest: "{{ coredns_download_directory }}/{{ coredns_archive_name }}"
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Extract the CoreDNS binary
+  ansible.builtin.unarchive:
+    src: "{{ coredns_download_directory }}/{{ coredns_archive_name }}"
+    dest: "{{ coredns_download_directory }}"
+    remote_src: true
+    creates: "{{ coredns_download_directory }}/coredns"
+    owner: root
+    group: root
+
+- name: Create the local binary directory
+  ansible.builtin.file:
+    path: /usr/local/bin
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Install the CoreDNS binary
+  ansible.builtin.copy:
+    src: "{{ coredns_download_directory }}/coredns"
+    dest: /usr/local/bin/coredns
+    remote_src: true
+    owner: root
+    group: root
+    mode: "0755"

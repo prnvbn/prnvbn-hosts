@@ -19,3 +19,7 @@
     - name: Configure Tailscale
       ansible.builtin.import_role:
         name: tailscale
+
+    - name: Install CoreDNS
+      ansible.builtin.import_role:
+        name: coredns

@@ -1,0 +1,6 @@
+---
+coredns_version: "1.14.7"
+coredns_architecture: "{{ {'aarch64': 'arm64', 'armv7l': 'arm', 'armv6l': 'arm', 'x86_64': 'amd64'}.get(ansible_facts['architecture'], '') }}"
+coredns_release_url: "https://github.com/coredns/coredns/releases/download/v{{ coredns_version }}"
+coredns_archive_name: "coredns_{{ coredns_version }}_linux_{{ coredns_architecture }}.tgz"
+coredns_download_directory: "/var/cache/coredns/{{ coredns_version }}/{{ coredns_architecture }}"
