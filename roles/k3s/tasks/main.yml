@@ -76,6 +76,23 @@
   changed_when: true
   notify: Restart K3s
 
+- name: Create the K3s configuration directory
+  ansible.builtin.file:
+    path: /etc/rancher/k3s/config.yaml.d
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Configure K3s certificate names
+  ansible.builtin.copy:
+    content: "{{ {'tls-san+': k3s_tls_sans} | to_nice_yaml }}"
+    dest: /etc/rancher/k3s/config.yaml.d/90-tls-san.yaml
+    owner: root
+    group: root
+    mode: "0600"
+  notify: Restart K3s
+
 - name: Apply K3s service changes
   ansible.builtin.meta: flush_handlers
 

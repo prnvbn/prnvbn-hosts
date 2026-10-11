@@ -1,0 +1,67 @@
+---
+- name: Check network DNS settings
+  ansible.builtin.assert:
+    that:
+      - network_dns_interface is defined
+      - network_dns_servers is defined
+      - network_dns_servers | length > 0
+    fail_msg: Set network_dns_interface and network_dns_servers in inventory.
+
+- name: Find the active NetworkManager connection
+  ansible.builtin.command:
+    argv:
+      - nmcli
+      - --get-values
+      - GENERAL.CON-UUID
+      - device
+      - show
+      - "{{ network_dns_interface }}"
+  register: network_dns_connection
+  changed_when: false
+  check_mode: false
+
+- name: Check that the network interface is connected
+  ansible.builtin.assert:
+    that:
+      - network_dns_connection.stdout | trim not in ['', '--']
+    fail_msg: "No active NetworkManager connection on {{ network_dns_interface }}."
+
+- name: Read the connection's DNS settings
+  ansible.builtin.command:
+    argv:
+      - nmcli
+      - --get-values
+      - ipv4.dns,ipv4.ignore-auto-dns,ipv6.ignore-auto-dns
+      - connection
+      - show
+      - "{{ network_dns_connection.stdout | trim }}"
+  register: network_dns_settings
+  changed_when: false
+  check_mode: false
+
+- name: Configure DNS servers and ignore DHCP DNS
+  ansible.builtin.command:
+    argv:
+      - nmcli
+      - connection
+      - modify
+      - "{{ network_dns_connection.stdout | trim }}"
+      - ipv4.dns
+      - "{{ network_dns_servers | join(',') }}"
+      - ipv4.ignore-auto-dns
+      - "yes"
+      - ipv6.ignore-auto-dns
+      - "yes"
+  when: network_dns_settings.stdout_lines != [network_dns_servers | join(','), 'yes', 'yes']
+  register: network_dns_update
+  changed_when: true
+
+# Reapply on every run so a previously interrupted run also applies saved settings.
+- name: Apply DNS settings without restarting the connection
+  ansible.builtin.command:
+    argv:
+      - nmcli
+      - device
+      - reapply
+      - "{{ network_dns_interface }}"
+  changed_when: network_dns_update is changed

@@ -13,4 +13,26 @@ sudo k3s kubectl get nodes
 ```
 
 The admin kubeconfig is `/etc/rancher/k3s/k3s.yaml`, readable by root. K3s includes
-CoreDNS for cluster DNS; the standalone `coredns` role only installs a binary.
+CoreDNS for cluster DNS.
+
+## Generate the local kubeconfig
+
+After running the playbook, run these commands from the repository root.
+Enter the Pi's sudo password when prompted:
+
+```bash
+ssh -t prnvbn@prnvbn-pi.local 'umask 077; sudo sed -E \
+  "s/(name|cluster|user|current-context): default$/\1: prnvbn-pi/; s#https://127.0.0.1:6443#https://prnvbn-pi.local:6443#" \
+  /etc/rancher/k3s/k3s.yaml > ~/prnvbn-pi.yaml'
+
+(umask 077; mkdir -p kubeconfigs; scp prnvbn@prnvbn-pi.local:prnvbn-pi.yaml kubeconfigs/prnvbn-pi.yaml)
+```
+
+Use it:
+
+```bash
+kubectl --kubeconfig kubeconfigs/prnvbn-pi.yaml get nodes
+```
+
+The file contains admin credentials and is Git-ignored. Its cluster, user, and
+context are named `prnvbn-pi`, and its API address is `https://prnvbn-pi.local:6443`.

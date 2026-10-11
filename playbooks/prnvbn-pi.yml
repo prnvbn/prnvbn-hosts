@@ -4,6 +4,10 @@
   become: true
 
   tasks:
+    - name: Configure network DNS
+      ansible.builtin.import_role:
+        name: network_dns
+
     - name: Update the apt package cache
       ansible.builtin.apt:
         update_cache: true
@@ -19,10 +23,6 @@
     - name: Configure Tailscale
       ansible.builtin.import_role:
         name: tailscale
-
-    - name: Install CoreDNS
-      ansible.builtin.import_role:
-        name: coredns
 
     - name: Install K3s
       ansible.builtin.import_role:
